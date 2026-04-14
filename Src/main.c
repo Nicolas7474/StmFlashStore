@@ -26,7 +26,6 @@ int main (void) {
 
 	NBdelay_ms(100);
 
-
 	if(!ee_write(EE_MODE, &mode, sizeof(mode)))
 	{
 		GPIOD->ODR^=GPIO_ODR_OD5; // red
