@@ -1,9 +1,9 @@
-/************************************************************************************
-*	STM32F469 EEPROM Emulation Library 						 	Nicolas Prata 04/2026
+/*****************************************************************************************
+*	STM32F469 EEPROM Emulation Library				Nicolas Prata 04/2026
 *
-*	A lightweight Flash Translation Layer for STM32F469 that abstracts internal Flash
-* 	sectors into a persistent storage area for user data and configuration.
-*************************************************************************************/
+*	A lightweight, bare metal Flash Translation Layer for STM32F469 that abstracts internal
+* 	Flash sectors into a persistent storage area for user data and configuration.
+*******************************************************************************************/
 
 /*  Recommendations: in STM32F469NIHX_FLASH.ld modify the Flash size and add a new EEPROM space storage element.
     Example:
