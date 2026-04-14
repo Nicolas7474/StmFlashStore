@@ -205,14 +205,34 @@ static void flash_write_block(uint32_t addr, const uint8_t *data, uint32_t len)
 
 static uint32_t ee_get_active_page(void)
 {
-	uint16_t p0 = *(uint16_t*)PAGE0_ADDR;
-	uint16_t p1 = *(uint16_t*)PAGE1_ADDR;
+    uint16_t p0 = *(uint16_t*)PAGE0_ADDR;
+    uint16_t p1 = *(uint16_t*)PAGE1_ADDR;
 
-	if (p0 == PAGE_VALID) return PAGE0_ADDR;
-	if (p1 == PAGE_VALID) return PAGE1_ADDR;
+    // Normal case
+    if (p0 == PAGE_VALID && p1 != PAGE_VALID)
+        return PAGE0_ADDR;
 
-	// fallback - TODO weak logic to improve
-	return PAGE0_ADDR;
+    if (p1 == PAGE_VALID && p0 != PAGE_VALID)
+        return PAGE1_ADDR;
+
+    // Transfer in progress
+    if (p0 == PAGE_RECEIVE && p1 == PAGE_VALID)
+        return PAGE1_ADDR;
+
+    if (p1 == PAGE_RECEIVE && p0 == PAGE_VALID)
+        return PAGE0_ADDR;
+
+    // Both valid → choose newest (using erase_count)
+    if (p0 == PAGE_VALID && p1 == PAGE_VALID)
+    {
+        uint16_t c0 = ee_get_erase_count_internal(PAGE0_ADDR);
+        uint16_t c1 = ee_get_erase_count_internal(PAGE1_ADDR);
+
+        return (c1 > c0) ? PAGE1_ADDR : PAGE0_ADDR;
+    }
+
+    // No valid page → init will fix
+    return 0;
 }
 
 /* ================= ERASE COUNT ================= */
@@ -501,19 +521,74 @@ static void ee_page_transfer(void)
 
 void ee_init(void)
 {
-	uint16_t p0 = *(uint16_t*)PAGE0_ADDR;
-	uint16_t p1 = *(uint16_t*)PAGE1_ADDR;
-	if (p0 != PAGE_VALID && p1 != PAGE_VALID)
-	{
-	    flash_unlock();
+    uint16_t p0 = *(uint16_t*)PAGE0_ADDR;
+    uint16_t p1 = *(uint16_t*)PAGE1_ADDR;
 
-	    flash_erase_sector(FLASH_SECTOR_22);
-	    flash_write_word(PAGE0_ADDR, ((uint32_t)0xFFFF << 16) | PAGE_VALID); // explicitly set the upper 16 bits (PAGE_VALID is only on 16bits)
+    // ===============================
+    // NORMAL CASES → nothing to do
+    // ===============================
+    if ((p0 == PAGE_VALID && p1 == PAGE_ERASED) ||
+        (p1 == PAGE_VALID && p0 == PAGE_ERASED))
+    {
+        // OK
+    }
 
-	    flash_lock();
-	}
-	ee_build_index();
+    // ===============================
+    // TRANSFER INTERRUPTED
+    // ===============================
+    else if (p0 == PAGE_RECEIVE && p1 == PAGE_VALID)
+    {
+        flash_unlock();
+        flash_erase_sector(FLASH_SECTOR_22);
+        flash_lock();
+    }
+    else if (p1 == PAGE_RECEIVE && p0 == PAGE_VALID)
+    {
+        flash_unlock();
+        flash_erase_sector(FLASH_SECTOR_23);
+        flash_lock();
+    }
 
-	ee_global_erase_count = ee_get_erase_count(ee_get_active_page());
+    // ===============================
+    // BOTH VALID → resolve conflict
+    // ===============================
+    else if (p0 == PAGE_VALID && p1 == PAGE_VALID)
+    {
+        uint16_t c0 = ee_get_erase_count_internal(PAGE0_ADDR);
+        uint16_t c1 = ee_get_erase_count_internal(PAGE1_ADDR);
+
+        flash_unlock();
+
+        if (c1 > c0)
+            flash_erase_sector(FLASH_SECTOR_22);
+        else
+            flash_erase_sector(FLASH_SECTOR_23);
+
+        flash_lock();
+    }
+
+    // ===============================
+    // NO VALID PAGE → full reset
+    // ===============================
+    else
+    {
+        flash_unlock();
+
+        flash_erase_sector(FLASH_SECTOR_22);
+        flash_erase_sector(FLASH_SECTOR_23);
+
+        flash_write_word(PAGE0_ADDR,
+            ((uint32_t)0xFFFF << 16) | PAGE_VALID);
+
+        flash_lock();
+    }
+
+    // ===============================
+    // COMMON FINALIZATION
+    // ===============================
+    ee_build_index();
+
+    uint32_t active = ee_get_active_page();
+    ee_global_erase_count = ee_get_erase_count(active);
 }
 
