@@ -56,8 +56,8 @@
 
 /* ================= CONFIG ================= */
 
-#define PAGE0_ADDR  0x081C0000U   // Flash RAM - sector 22
-#define PAGE1_ADDR  0x081E0000U   // Flash RAM - sector 23
+#define PAGE0_ADDR  0x081C0000U   // Flash - sector 22
+#define PAGE1_ADDR  0x081E0000U   // Flash - sector 23
 #define PAGE_SIZE   0x20000U      // 128 KB
 
 #define FLASH_SECTOR_22   26 	  // sectors 12–23 → bank 2 (offset encoding)
